@@ -4,6 +4,9 @@ EXTENDS Sequences, Integers, TLC
 
 
 \* TODO: Include the concept of NULL
+\* TODO: Assert that board is correct
+\* TODO: Implement history
+\* TODO: Check if there is a winner
 
 (*--algorithm TicTacToe
 
@@ -11,24 +14,18 @@ variables
     history = <<>>,
     board = <<"", "", "", "", "", "", "", "", "">>,
     square = 0,
-    openSquares = 1..9,
+    possibleSquares = 1..9,
+    usedSquares = {},
     xIsNext = TRUE, 
+    count = [X |-> 0, O |-> 0],
     gameIsOver = FALSE,
     winner = "";
-
-macro make_valid_move() begin
-    
-end macro;
-
-macro make_illegal_move() begin
-
-end macro;
 
 begin
 
     while ~gameIsOver do
     
-        square := CHOOSE x \in openSquares : TRUE;
+        square := CHOOSE x \in possibleSquares : x \notin usedSquares;
         
         if xIsNext then
             board[square] := "X";
@@ -37,59 +34,74 @@ begin
         end if;
         
         xIsNext := ~xIsNext;
-        openSquares := openSquares \ {square};
-        gameIsOver := openSquares = {};
+        usedSquares := usedSquares \union {square};
+        gameIsOver := possibleSquares \ usedSquares = {};
         
+        count["X"] := Len(SelectSeq(board, LAMBDA x : x = "X"));
+        count["O"] := Len(SelectSeq(board, LAMBDA x : x = "O"));
+        
+        assert count["X"] - count["O"] \in { 0, 1 };
     
     end while;
     
 end algorithm; *)
-\* BEGIN TRANSLATION - the hash of the PCal code: PCal-2b9174ec4b4087972bd6fe5f580abf85
-VARIABLES history, board, square, openSquares, xIsNext, gameIsOver, winner, 
-          pc
+\* BEGIN TRANSLATION - the hash of the PCal code: PCal-456894598e2b745d199740367fdd0a37
+VARIABLES history, board, square, possibleSquares, usedSquares, xIsNext, 
+          count, gameIsOver, winner, pc
 
-vars == << history, board, square, openSquares, xIsNext, gameIsOver, winner, 
-           pc >>
+vars == << history, board, square, possibleSquares, usedSquares, xIsNext, 
+           count, gameIsOver, winner, pc >>
 
 Init == (* Global variables *)
         /\ history = <<>>
         /\ board = <<"", "", "", "", "", "", "", "", "">>
         /\ square = 0
-        /\ openSquares = 1..9
+        /\ possibleSquares = 1..9
+        /\ usedSquares = {}
         /\ xIsNext = TRUE
+        /\ count = [X |-> 0, O |-> 0]
         /\ gameIsOver = FALSE
         /\ winner = ""
         /\ pc = "Lbl_1"
 
 Lbl_1 == /\ pc = "Lbl_1"
          /\ IF ~gameIsOver
-               THEN /\ square' = (CHOOSE x \in openSquares : TRUE)
+               THEN /\ square' = (CHOOSE x \in possibleSquares : x \notin usedSquares)
                     /\ IF xIsNext
                           THEN /\ board' = [board EXCEPT ![square'] = "X"]
                           ELSE /\ board' = [board EXCEPT ![square'] = "O"]
                     /\ xIsNext' = ~xIsNext
-                    /\ openSquares' = openSquares \ {square'}
-                    /\ gameIsOver' = (openSquares' = {})
-                    /\ pc' = "Lbl_1"
+                    /\ usedSquares' = (usedSquares \union {square'})
+                    /\ gameIsOver' = (possibleSquares \ usedSquares' = {})
+                    /\ count' = [count EXCEPT !["X"] = Len(SelectSeq(board', LAMBDA x : x = "X"))]
+                    /\ pc' = "Lbl_2"
                ELSE /\ pc' = "Done"
-                    /\ UNCHANGED << board, square, openSquares, xIsNext, 
+                    /\ UNCHANGED << board, square, usedSquares, xIsNext, count, 
                                     gameIsOver >>
-         /\ UNCHANGED << history, winner >>
+         /\ UNCHANGED << history, possibleSquares, winner >>
+
+Lbl_2 == /\ pc = "Lbl_2"
+         /\ count' = [count EXCEPT !["O"] = Len(SelectSeq(board, LAMBDA x : x = "O"))]
+         /\ Assert(count'["X"] - count'["O"] \in { 0, 1 }, 
+                   "Failure of assertion at line 43, column 9.")
+         /\ pc' = "Lbl_1"
+         /\ UNCHANGED << history, board, square, possibleSquares, usedSquares, 
+                         xIsNext, gameIsOver, winner >>
 
 (* Allow infinite stuttering to prevent deadlock on termination. *)
 Terminating == pc = "Done" /\ UNCHANGED vars
 
-Next == Lbl_1
+Next == Lbl_1 \/ Lbl_2
            \/ Terminating
 
 Spec == Init /\ [][Next]_vars
 
 Termination == <>(pc = "Done")
 
-\* END TRANSLATION - the hash of the generated TLA code (remove to silence divergence warnings): TLA-5248873a8352d464eec3b9f4d29a1a75
+\* END TRANSLATION - the hash of the generated TLA code (remove to silence divergence warnings): TLA-3b243638e5dc02dff0e0f8bd30620e61
 
 
 =============================================================================
 \* Modification History
-\* Last modified Fri May 15 06:34:19 PDT 2020 by algorist
+\* Last modified Mon May 25 06:47:34 PDT 2020 by algorist
 \* Created Fri May 15 05:48:45 PDT 2020 by algorist
